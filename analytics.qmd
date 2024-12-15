@@ -1,0 +1,248 @@
+---
+title: "analytics"
+format: html
+editor: visual
+---
+
+# Warlog Analytics 
+
+```{r}
+install.packages("DT")
+```
+
+```{r}
+library(dplyr)
+library(DT)
+```
+
+```{r}
+
+#C:/Users/15184/OneDrive - St. Lawrence University/Desktop/SeniorFall
+warLog2 <- read_csv("WarLog.csv")
+warLogLeague2 <- read_csv("LeagueWarLog.csv")
+```
+
+```{r}
+  # Calculate the average stars by attackertag
+  avg_stars <- warLog2 %>%
+    group_by(attackerTag) %>%
+    summarise(avgStars = mean(stars, na.rm = TRUE))
+  
+  avg_stars
+  
+  
+```
+
+Chuck to add 'attackOrder' column (1 or 2)
+
+```{r}
+
+# Check if the attackerTag column exists
+if ("attackerTag" %in% names(warLog2)) {
+  
+  # Initialize an empty vector to store attack order
+  attackOrder <- integer(nrow(warLog2))
+  
+  # Create a counter to track the number of attacks for each attacker
+  attacker_counts <- list()
+  
+  # Loop through each row in the dataset
+  for (i in seq_len(nrow(warLog2))) {
+    attacker <- warLog$attackerTag[i]
+    
+    # Check if attacker has attacked before
+    if (is.null(attacker_counts[[attacker]])) {
+      # If first attack, set attackOrder to 1
+      attackOrder[i] <- 1
+      attacker_counts[[attacker]] <- 1
+    } else {
+      # If second attack, set attackOrder to 2
+      attackOrder[i] <- 2
+      attacker_counts[[attacker]] <- attacker_counts[[attacker]] + 1
+    }
+  }
+  
+  # Add the attackOrder column to the dataset
+  warLog2$attackOrder <- attackOrder
+  
+  # Display the first few rows to check
+  head(warLog2)
+  
+}
+
+
+```
+
+avg stars and destruction per attack
+
+```{r}
+tag = "#G0QVQR8R"
+data1 <- warLog2 %>% filter(attackerTag == tag) %>% group_by(attackOrder) %>% summarise(attackerTag = tag ,avg_destruction = mean(destructionPercentage, na.rm = TRUE), avg_stars = mean(stars, na.rm = TRUE))
+
+data1
+
+
+  
+  
+```
+
+Average stars and destruction on different town halls
+
+# take difference in townhall relative to current th
+
+ex. 1 2 3 -1 -2 -3 so its relative
+
+player name instead of tag
+
+```{r}
+attacker_Tag <- "#VUL2UY28"  # Replace with the desired tag
+
+
+
+
+# list of possible townhalls player could have attacked 
+all_townhalls <- warLogLeague2 %>%
+  select(townhallLevel.y) %>%
+  distinct() %>%
+  arrange(townhallLevel.y)
+
+
+
+# list of attacks for players tag
+filtered_data <- warLogLeague2 %>%
+  filter(attackerTag == attacker_Tag)
+
+
+
+
+# averages for stars and destruction
+player_stats <- filtered_data %>%
+  group_by(townhallLevel.y) %>%
+  summarize(
+    average_stars = mean(stars, na.rm = TRUE),
+    average_destruction = mean(destructionPercentage, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+
+# join list and fill in missing values
+all_townhalls %>%
+  left_join(player_stats, by = "townhallLevel.y") %>%
+  mutate(
+    player_tag = attacker_tag,
+    average_stars = replace_na(average_stars, 0),
+    average_destruction = replace_na(average_destruction, 0)
+    )
+
+
+```
+
+```{r}
+attacker_Tag <- "#VUL2UY28"  # Replace with the desired tag
+
+# Calculate the highest and lowest town hall levels in the dataset
+max_townhall_level <- max(warLogLeague2$townhallLevel.y, na.rm = TRUE)
+min_townhall_level <- min(warLogLeague2$townhallLevel.y, na.rm = TRUE)
+
+# Calculate the maximum and minimum possible differences
+max_difference <- max_townhall_level - min(warLogLeague2$townhallLevel.x, na.rm = TRUE)
+min_difference <- min_townhall_level - max(warLogLeague2$townhallLevel.x, na.rm = TRUE)
+
+# Create a tibble with all possible differences based on the calculated range
+all_townhall_differences <- tibble(
+  townhall_difference = seq(min_difference, max_difference)
+)
+
+# Filter data for the specified attacker and calculate the town hall difference
+filtered_data <- warLogLeague2 %>%
+  filter(attackerTag == attacker_Tag) %>%
+  mutate(
+    townhall_difference = townhallLevel.y - townhallLevel.x
+  )
+
+# Calculate averages for stars and destruction for each difference
+player_stats <- filtered_data %>%
+  group_by(townhall_difference) %>%
+  summarize(
+    average_stars = mean(stars, na.rm = TRUE),
+    average_destruction = mean(destructionPercentage, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Join with the full range of differences and fill missing values with 0
+final_output <- all_townhall_differences %>%
+  left_join(player_stats, by = "townhall_difference") %>%
+  mutate(
+    player_tag = attacker_Tag,
+    average_stars = average_stars,
+    average_destruction = average_destruction
+  )
+
+# Display the result
+final_output
+
+```
+
+attack compared to map position
+
+compare attack 1 and 2
+
+```{r}
+
+attacker_tag <- "#VUL2UY28" # Replace with the desired player tag
+
+# Filter the data for the specific player
+filtered_data <- warLogLeague2 %>%
+  filter(attackerTag == attacker_tag)
+
+# Calculate the average map position difference
+average_position_difference <- filtered_data %>%
+  mutate(position_difference = mapPosition.y - mapPosition.x) %>%
+  summarize(average_difference = mean(position_difference, na.rm = TRUE)) %>%
+  pull(average_difference)
+
+# Output the result
+print(paste("Average map position difference for", attacker_tag, ":", average_position_difference))
+
+```
+
+make player rakings like automated map position based on metrics
+
+dt package in r to make sorted table based on certian things.
+
+```{r}
+# Load necessary library
+library(dplyr)
+
+# Assuming warLog is your dataset
+summary_table <- warLog2 %>%
+  group_by(attackerTag, townhallLevel.x) %>%  # Group by player and their townhall level
+  summarise(
+    AvgStars = mean(stars, na.rm = TRUE),               # Calculate average stars
+    AvgDestruction = mean(destructionPercentage, na.rm = TRUE), # Calculate average destruction
+    TotalAttacks = n(),                                 # Count total attacks
+    .groups = "drop"
+  ) %>%
+  arrange(desc(AvgStars), desc(AvgDestruction))  # Sort by performance metrics
+
+# Display the new table
+summary_table
+
+```
+
+```{r}
+# Create an interactive datatable
+datatable(
+  summary_table,
+  options = list(
+    pageLength = 10,      
+    autoWidth = TRUE,     
+    order = list(list(1, 'desc'), list(2, 'desc'))  
+  ),
+  rownames = FALSE,       
+  caption = "Recomended Map Positioning for War"
+)
+
+```
